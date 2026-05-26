@@ -1,8 +1,8 @@
 group: io.kestra.plugin.scrapy
 name: "scrapy"
 title: "Scrapy"
-description: "Scrapy plugin for Kestra"
-body: ""
+description: "Tasks that run Scrapy spiders and CLI commands to scrape data from websites."
+body: "Use the `CLI` task to execute `scrapy crawl`, `scrapy runspider`, and other Scrapy commands inside the pre-built `ghcr.io/kestra-io/scrapy` image."
 videos: []
 createdBy: "Kestra Core Team"
 managedBy: "Kestra Core Team"

@@ -37,21 +37,50 @@
 
 # Kestra Scrapy Plugin
 
-## Why
+Tasks that run [Scrapy](https://scrapy.org/) spiders and CLI commands from Kestra flows.
 
-- What user problem does this solve? Teams need a concrete starting point for building and validating new Kestra plugins without recreating the same project scaffolding from scratch.
-- Why would a team adopt this plugin in a workflow? It gives plugin authors a ready-made reference repo they can adapt alongside their own build, test, and publishing workflow.
-- What operational/business outcome does it enable? It shortens plugin delivery time, reduces setup mistakes, and makes internal or partner plugin development more repeatable.
+One task: `io.kestra.plugin.scrapy.CLI`. Runs commands inside `ghcr.io/kestra-io/scrapy`, which ships with Scrapy plus `itemadapter`, `scrapy-playwright`, `pillow`, `pandas`. Install anything else via `beforeCommands`.
 
-## What
+Supports:
 
-- Provides plugin components under `io.kestra.plugin.scrapy`.
-- Includes classes such as `Example`, `Trigger`.
+- `scrapy crawl <spider>` against a project.
+- `scrapy runspider <file>.py` against a single file.
+- Output capture via `outputFiles` (JSON, JSON Lines, CSV, XML).
+- Project loading from `namespaceFiles` or `inputFiles`.
+
+## Example
+
+```yaml
+id: scrapy_runspider
+namespace: company.team
+
+tasks:
+  - id: crawl
+    type: io.kestra.plugin.scrapy.CLI
+    inputFiles:
+      quotes_spider.py: |
+        import scrapy
+
+        class QuotesSpider(scrapy.Spider):
+            name = "quotes"
+            start_urls = ["https://quotes.toscrape.com"]
+
+            def parse(self, response):
+                for quote in response.css("div.quote"):
+                    yield {
+                        "text": quote.css("span.text::text").get(),
+                        "author": quote.css("small.author::text").get(),
+                    }
+    commands:
+      - scrapy runspider quotes_spider.py -o quotes.jsonl
+    outputFiles:
+      - quotes.jsonl
+```
 
 ## Documentation
 * Full documentation can be found under: [kestra.io/docs](https://kestra.io/docs)
-* Documentation for developing a plugin is included in the [Plugin Developer Guide](https://kestra.io/docs/plugin-developer-guide/)
-
+* Plugin developer guide: [Plugin Developer Guide](https://kestra.io/docs/plugin-developer-guide/)
+* Scrapy documentation: [docs.scrapy.org](https://docs.scrapy.org/)
 
 ## License
 Apache 2.0 © [Kestra Technologies](https://kestra.io)
