@@ -1,10 +1,10 @@
 {
-  "name": "plugin-template",
+  "name": "plugin-scrapy",
   "build": {
     "context": ".",
     "dockerfile": "Dockerfile"
   },
-  "workspaceFolder": "/workspaces/plugin-template",
+  "workspaceFolder": "/workspaces/plugin-scrapy",
   "forwardPorts": [8080],
   "customizations": {
     "vscode": {
