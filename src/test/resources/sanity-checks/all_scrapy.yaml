@@ -1,0 +1,40 @@
+id: all_scrapy
+namespace: sanitychecks.plugin-scrapy
+
+tasks:
+  - id: scrapy_cli
+    type: io.kestra.plugin.scrapy.CLI
+    outputFiles:
+      - scrapy_version.txt
+      - quotes.jsonl
+    inputFiles:
+      quotes_spider.py: |
+        import scrapy
+
+        class QuotesSpider(scrapy.Spider):
+            name = "quotes"
+            start_urls = ["https://quotes.toscrape.com"]
+            custom_settings = {"CLOSESPIDER_PAGECOUNT": 1, "LOG_LEVEL": "INFO"}
+
+            def parse(self, response):
+                for quote in response.css("div.quote"):
+                    yield {
+                        "text": quote.css("span.text::text").get(),
+                        "author": quote.css("small.author::text").get(),
+                    }
+    commands:
+      - scrapy version > scrapy_version.txt
+      - scrapy runspider quotes_spider.py -o quotes.jsonl
+
+  - id: assert
+    type: io.kestra.plugin.core.execution.Assert
+    conditions:
+      - "{{ outputs.scrapy_cli.exitCode == 0 }}"
+      - "{{ outputs.scrapy_cli.outputFiles['scrapy_version.txt'] is not null }}"
+      - "{{ read(outputs.scrapy_cli.outputFiles['scrapy_version.txt']) contains 'Scrapy' }}"
+      - "{{ outputs.scrapy_cli.outputFiles['quotes.jsonl'] is not null }}"
+      - "{{ read(outputs.scrapy_cli.outputFiles['quotes.jsonl']) | length > 0 }}"
+
+finally:
+  - id: purge
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles

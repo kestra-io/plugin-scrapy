@@ -1,7 +1,8 @@
 @PluginSubGroup(
     title = "Scrapy",
-    description = "Scrapy plugin for Kestra",
-    categories = PluginSubGroup.PluginCategory.TOOL
+    description = """
+        Tasks that run Scrapy spiders and CLI commands to scrape data from websites.""",
+    categories = { PluginSubGroup.PluginCategory.DATA }
 )
 package io.kestra.plugin.scrapy;
 

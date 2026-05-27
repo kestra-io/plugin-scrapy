@@ -2,14 +2,14 @@
 
 ## What
 
-- Provides plugin components under `io.kestra.plugin.scrapy`.
-- Includes classes such as `Example`, `Trigger`.
+- Provides a single CLI task under `io.kestra.plugin.scrapy` that runs Scrapy spiders and CLI commands.
+- Ships a pre-built Docker image (`ghcr.io/kestra-io/scrapy`) built from `dockerfiles/scrapy.Dockerfile`.
 
 ## Why
 
-- What user problem does this solve? Teams need a concrete starting point for building and validating new Kestra plugins without recreating the same project scaffolding from scratch.
-- Why would a team adopt this plugin in a workflow? It gives plugin authors a ready-made reference repo they can adapt alongside their own build, test, and publishing workflow.
-- What operational/business outcome does it enable? It shortens plugin delivery time, reduces setup mistakes, and makes internal or partner plugin development more repeatable.
+- Teams that run Scrapy spiders from Kestra otherwise reach for a generic `python.Commands` task with manual `pip install scrapy`, or build a bespoke image per project. Both routes lose plugin catalog discoverability, image consistency, and clear documentation.
+- A typed task with the same ergonomics as other Kestra script plugins: `commands`, `beforeCommands`, `inputFiles`, `outputFiles`, `namespaceFiles`.
+- Chain spider runs with downstream SQL transforms, notifications, or file uploads in one flow without rebuilding the environment each time.
 
 ## How
 
@@ -19,18 +19,16 @@ Single-module plugin. Source packages under `io.kestra.plugin`:
 
 - `scrapy`
 
-Infrastructure dependencies (Docker Compose services):
-
-- `app`
-
 ### Key Plugin Classes
 
-- `io.kestra.plugin.scrapy.Example`
+- `io.kestra.plugin.scrapy.CLI` (extends `AbstractExecScript`, implements `RunnableTask<ScriptOutput>`, `NamespaceFilesInterface`, `InputFilesInterface`, `OutputFilesInterface`)
 
 ### Project Structure
 
 ```
 plugin-scrapy/
+├── dockerfiles/
+│   └── scrapy.Dockerfile
 ├── src/main/java/io/kestra/plugin/scrapy/
 ├── src/test/java/io/kestra/plugin/scrapy/
 ├── build.gradle
@@ -40,8 +38,10 @@ plugin-scrapy/
 ## Local rules
 
 - Base the wording on the implemented packages and classes, not on template README text.
+- One CLI task wrapping a pre-built Docker image. No Java library dependencies beyond the standard Kestra plugin scaffold.
 
 ## References
 
 - https://kestra.io/docs/plugin-developer-guide
 - https://kestra.io/docs/plugin-developer-guide/contribution-guidelines
+- https://docs.scrapy.org/en/latest/
