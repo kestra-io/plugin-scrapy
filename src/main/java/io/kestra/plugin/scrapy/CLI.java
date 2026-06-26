@@ -32,7 +32,7 @@ import lombok.experimental.SuperBuilder;
 @Getter
 @NoArgsConstructor
 @Schema(
-    title = "Run Scrapy spiders and CLI commands.",
+    title = "Run Scrapy spiders and CLI commands",
     description = """
         Run a spider from a Scrapy project with `scrapy crawl`, or a standalone spider file with `scrapy runspider`, and capture the output as Kestra files."""
 )
@@ -169,7 +169,7 @@ public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput
     private static final String DEFAULT_IMAGE = "ghcr.io/kestra-io/scrapy";
 
     @Schema(
-        title = "The Scrapy commands to run.",
+        title = "The Scrapy commands to run",
         description = """
             For example `scrapy crawl <spider>` or `scrapy runspider <file>.py`."""
     )
@@ -178,7 +178,7 @@ public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput
     protected Property<List<String>> commands;
 
     @Schema(
-        title = "The container image to run Scrapy in.",
+        title = "The container image to run Scrapy in",
         description = """
             Defaults to `ghcr.io/kestra-io/scrapy`, pre-installed with Scrapy and common extras. Override to pin a version or use a custom image."""
     )
