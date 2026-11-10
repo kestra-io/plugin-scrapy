@@ -7,11 +7,11 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
       gcc build-essential libxml2-dev libxslt-dev ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv && uv pip install --system \
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel uv && uv pip install --system \
     "scrapy>=2.12" \
     itemadapter \
     scrapy-playwright \
