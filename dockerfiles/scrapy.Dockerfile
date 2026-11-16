@@ -35,5 +35,9 @@ COPY --chmod=0755 dockerfiles/kestra-entrypoint.sh /usr/local/bin/kestra-entrypo
 
 WORKDIR /home/kestra
 
+# SEC-0091: the container starts as root on purpose so kestra-entrypoint.sh can chown the root:root
+# working dir created by the Kestra runner, then drops to UID 1000 with setpriv before running user commands.
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint
 ENTRYPOINT ["/bin/sh", "-c"]
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["python --version"]
