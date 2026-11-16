@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       gcc build-essential libxml2-dev libxslt-dev ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
-# Run as a non-root user (fixed UID/GID 1000) with a writable HOME.
+# Unprivileged user (fixed UID/GID 1000) with a writable HOME. The container itself starts as root
+# and kestra-entrypoint.sh drops to this user: Kestra creates the task working directory as root.
 RUN groupadd --gid 1000 kestra \
  && useradd --uid 1000 --gid kestra --create-home --home-dir /home/kestra --shell /bin/sh kestra
 
@@ -30,7 +31,8 @@ RUN python -m venv /opt/venv \
     pandas \
  && chown -R kestra:kestra /opt/venv
 
-USER kestra
+COPY --chmod=0755 dockerfiles/kestra-entrypoint.sh /usr/local/bin/kestra-entrypoint.sh
+
 WORKDIR /home/kestra
 
 ENTRYPOINT ["/bin/sh", "-c"]

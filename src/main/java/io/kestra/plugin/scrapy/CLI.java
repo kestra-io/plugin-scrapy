@@ -167,6 +167,7 @@ import lombok.experimental.SuperBuilder;
 )
 public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput>, NamespaceFilesInterface, InputFilesInterface, OutputFilesInterface {
     private static final String DEFAULT_IMAGE = "ghcr.io/kestra-io/scrapy";
+    private static final String DEFAULT_IMAGE_ENTRYPOINT = "/usr/local/bin/kestra-entrypoint.sh";
 
     @Schema(
         title = "The Scrapy commands to run",
@@ -180,7 +181,9 @@ public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput
     @Schema(
         title = "The container image to run Scrapy in",
         description = """
-            Defaults to `ghcr.io/kestra-io/scrapy`, pre-installed with Scrapy and common extras. Override to pin a version or use a custom image."""
+            Defaults to `ghcr.io/kestra-io/scrapy`, pre-installed with Scrapy and common extras. Override to pin a version or use a custom image.
+
+            The default image starts as root only to hand the task working directory to a `kestra` user (UID/GID 1000), then runs your commands as that user. Files written to a mounted working directory end up owned by UID 1000. Set the Docker `user` option to run as another user (including `root`) instead."""
     )
     @Builder.Default
     @PluginProperty(group = "execution")
@@ -189,13 +192,23 @@ public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput
     @Override
     protected DockerOptions injectDefaults(RunContext runContext, DockerOptions original) throws IllegalVariableEvaluationException {
         var builder = original.toBuilder();
-        if (original.getImage() == null) {
-            builder.image(runContext.render(this.getContainerImage()).as(String.class).orElse(null));
+        var image = original.getImage();
+        if (image == null) {
+            image = runContext.render(this.getContainerImage()).as(String.class).orElse(DEFAULT_IMAGE);
+            builder.image(image);
         }
         if (original.getEntryPoint() == null || original.getEntryPoint().isEmpty()) {
-            builder.entryPoint(List.of());
+            var dropRoot = original.getUser() == null && isDefaultImage(image);
+            builder.entryPoint(dropRoot ? List.of(DEFAULT_IMAGE_ENTRYPOINT) : List.of());
         }
         return builder.build();
+    }
+
+    private static boolean isDefaultImage(String image) {
+        var withoutDigest = image.split("@", 2)[0];
+        var lastColon = withoutDigest.lastIndexOf(':');
+        var repository = lastColon > withoutDigest.lastIndexOf('/') ? withoutDigest.substring(0, lastColon) : withoutDigest;
+        return DEFAULT_IMAGE.equals(repository);
     }
 
     @Override

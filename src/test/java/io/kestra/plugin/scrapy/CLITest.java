@@ -15,6 +15,7 @@ import io.kestra.core.queues.QueueInterface;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.TestsUtils;
+import io.kestra.plugin.scripts.exec.scripts.models.DockerOptions;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
 
 import jakarta.inject.Inject;
@@ -124,4 +125,45 @@ public class CLITest {
         receive.blockLast();
         assertThat(logs.stream().anyMatch(log -> log.getMessage() != null && log.getMessage().contains("Scrapy help command completed!")), is(true));
     }
+
+    @Test
+    void defaultImageDropsRootThroughEntrypoint() throws Exception {
+        assertThat(entryPoint(CLI.builder(), null, null), is(List.of(ENTRYPOINT)));
+    }
+
+    @Test
+    void defaultImageWithTagOrDigestDropsRootThroughEntrypoint() throws Exception {
+        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy:1.2.3")), null, null), is(List.of(ENTRYPOINT)));
+        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy@sha256:abc")), null, null), is(List.of(ENTRYPOINT)));
+    }
+
+    @Test
+    void customImageKeepsEmptyEntrypoint() throws Exception {
+        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("my-registry:5000/scrapy-custom:1")), null, null), is(List.of()));
+        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy-other")), null, null), is(List.of()));
+    }
+
+    @Test
+    void userDefinedEntrypointIsKept() throws Exception {
+        assertThat(entryPoint(CLI.builder(), List.of("/custom.sh"), null), is(List.of("/custom.sh")));
+    }
+
+    @Test
+    void explicitUserKeepsEmptyEntrypoint() throws Exception {
+        assertThat(entryPoint(CLI.builder(), null, "root"), is(List.of()));
+    }
+
+    private List<String> entryPoint(CLI.CLIBuilder<?, ?> builder, List<String> entryPoint, String user) throws Exception {
+        var task = builder
+            .id("scrapy-defaults-" + UUID.randomUUID())
+            .type(CLI.class.getName())
+            .commands(Property.ofValue(List.of("scrapy version")))
+            .build();
+        var runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
+        var options = DockerOptions.builder().entryPoint(entryPoint).user(user).build();
+
+        return task.injectDefaults(runContext, options).getEntryPoint();
+    }
+
+    private static final String ENTRYPOINT = "/usr/local/bin/kestra-entrypoint.sh";
 }
