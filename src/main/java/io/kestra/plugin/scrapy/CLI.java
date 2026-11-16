@@ -12,10 +12,12 @@ import io.kestra.core.models.tasks.NamespaceFilesInterface;
 import io.kestra.core.models.tasks.OutputFilesInterface;
 import io.kestra.core.models.tasks.RunnableTask;
 import io.kestra.core.models.tasks.runners.TargetOS;
+import io.kestra.core.models.tasks.runners.TaskRunner;
 import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.scripts.exec.AbstractExecScript;
 import io.kestra.plugin.scripts.exec.scripts.models.DockerOptions;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
+import io.kestra.plugin.scripts.runner.docker.Docker;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
@@ -167,12 +169,12 @@ import lombok.experimental.SuperBuilder;
 )
 public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput>, NamespaceFilesInterface, InputFilesInterface, OutputFilesInterface {
     private static final String DEFAULT_IMAGE = "ghcr.io/kestra-io/scrapy";
-    private static final String DEFAULT_IMAGE_SCRIPT = "/usr/local/bin/kestra-entrypoint.sh";
-    // Falls back to running the command unchanged when the image predates the script.
-    static final List<String> DEFAULT_IMAGE_ENTRYPOINT = List.of(
+    private static final String DROP_ROOT_SCRIPT = "/usr/local/bin/kestra-entrypoint.sh";
+    // Falls back to running the command unchanged when the image does not ship the script.
+    static final List<String> DROP_ROOT_ENTRYPOINT = List.of(
         "/bin/sh",
         "-c",
-        "if [ -x " + DEFAULT_IMAGE_SCRIPT + " ]; then exec " + DEFAULT_IMAGE_SCRIPT + " \"$@\"; fi; exec \"$@\"",
+        "if [ -x " + DROP_ROOT_SCRIPT + " ]; then exec " + DROP_ROOT_SCRIPT + " \"$@\"; fi; exec \"$@\"",
         "kestra-entrypoint"
     );
 
@@ -190,7 +192,7 @@ public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput
         description = """
             Defaults to `ghcr.io/kestra-io/scrapy`, pre-installed with Scrapy and common extras. Override to pin a version or use a custom image.
 
-            The default image starts as root only to hand the task working directory to a `kestra` user (UID/GID 1000), then runs your commands as that user. Files written to a mounted working directory end up owned by UID 1000. Set the Docker `user` option to run as another user (including `root`) instead."""
+            Commands run as the `kestra` user (UID/GID 1000) when the image ships `/usr/local/bin/kestra-entrypoint.sh`, as the default image does. The container starts as root only so that script can hand the task working directory to that user. Set the Docker runner's `user` or `entryPoint` to opt out. Files written to a mounted working directory end up owned by UID 1000."""
     )
     @Builder.Default
     @PluginProperty(group = "execution")
@@ -199,30 +201,35 @@ public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput
     @Override
     protected DockerOptions injectDefaults(RunContext runContext, DockerOptions original) throws IllegalVariableEvaluationException {
         var builder = original.toBuilder();
-        var image = original.getImage();
-        if (image == null) {
-            image = runContext.render(this.getContainerImage()).as(String.class).orElse(DEFAULT_IMAGE);
-            builder.image(image);
+        if (original.getImage() == null) {
+            builder.image(runContext.render(this.getContainerImage()).as(String.class).orElse(null));
         }
         if (original.getEntryPoint() == null || original.getEntryPoint().isEmpty()) {
-            var dropRoot = original.getUser() == null && isDefaultImage(image);
-            builder.entryPoint(dropRoot ? DEFAULT_IMAGE_ENTRYPOINT : List.of());
+            builder.entryPoint(List.of());
         }
         return builder.build();
     }
 
-    private static boolean isDefaultImage(String image) {
-        var withoutDigest = image.split("@", 2)[0];
-        var lastColon = withoutDigest.lastIndexOf(':');
-        var repository = lastColon > withoutDigest.lastIndexOf('/') ? withoutDigest.substring(0, lastColon) : withoutDigest;
-        return DEFAULT_IMAGE.equals(repository);
+    // The runner's own default entryPoint is [""], which would otherwise override the image ENTRYPOINT.
+    static TaskRunner<?> withDropRootEntrypoint(TaskRunner<?> taskRunner) {
+        if (taskRunner instanceof Docker docker
+            && (docker.getUser() == null || docker.getUser().isBlank())
+            && (docker.getEntryPoint() == null || docker.getEntryPoint().isEmpty() || docker.getEntryPoint().equals(List.of("")))) {
+            return docker.toBuilder().entryPoint(DROP_ROOT_ENTRYPOINT).build();
+        }
+        return taskRunner;
     }
 
     @Override
     public ScriptOutput run(RunContext runContext) throws Exception {
         TargetOS os = runContext.render(this.targetOS).as(TargetOS.class).orElse(null);
 
-        return this.commands(runContext)
+        // Use the wrapper's runner: it holds the default Docker runner when the task sets none.
+        var wrapper = this.commands(runContext);
+        TaskRunner<?> taskRunner = wrapper.getTaskRunner();
+
+        return wrapper
+            .withTaskRunner(withDropRootEntrypoint(taskRunner))
             .withInterpreter(this.interpreter)
             .withBeforeCommands(beforeCommands)
             .withBeforeCommandsWithOptions(true)

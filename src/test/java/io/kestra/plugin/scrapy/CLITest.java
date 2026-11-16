@@ -15,8 +15,9 @@ import io.kestra.core.queues.QueueInterface;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.TestsUtils;
-import io.kestra.plugin.scripts.exec.scripts.models.DockerOptions;
+import io.kestra.plugin.core.runner.Process;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
+import io.kestra.plugin.scripts.runner.docker.Docker;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
@@ -24,6 +25,7 @@ import reactor.core.publisher.Flux;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 @KestraTest
 public class CLITest {
@@ -127,13 +129,19 @@ public class CLITest {
     }
 
     @Test
-    void defaultImageDropsRootThroughEntrypoint() throws Exception {
-        assertThat(entryPoint(CLI.builder(), null, null), is(CLI.DEFAULT_IMAGE_ENTRYPOINT));
+    void dockerRunnerWithDefaultEntrypointGetsDropRootEntrypoint() {
+        var defaultRunner = Docker.builder().type(Docker.class.getName()).image("custom:1").build();
+        assertThat(defaultRunner.getEntryPoint(), is(List.of("")));
+
+        var runner = (Docker) CLI.withDropRootEntrypoint(defaultRunner);
+
+        assertThat(runner.getEntryPoint(), is(CLI.DROP_ROOT_ENTRYPOINT));
+        assertThat(runner.getImage(), is("custom:1"));
     }
 
     @Test
-    void defaultImageEntrypointFallsBackToTheCommandWhenScriptIsMissing() {
-        assertThat(CLI.DEFAULT_IMAGE_ENTRYPOINT, is(List.of(
+    void dropRootEntrypointWrapsTheScriptWithAFallback() {
+        assertThat(CLI.DROP_ROOT_ENTRYPOINT, is(List.of(
             "/bin/sh",
             "-c",
             "if [ -x /usr/local/bin/kestra-entrypoint.sh ]; then exec /usr/local/bin/kestra-entrypoint.sh \"$@\"; fi; exec \"$@\"",
@@ -142,36 +150,23 @@ public class CLITest {
     }
 
     @Test
-    void defaultImageWithTagOrDigestDropsRootThroughEntrypoint() throws Exception {
-        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy:1.2.3")), null, null), is(CLI.DEFAULT_IMAGE_ENTRYPOINT));
-        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy@sha256:abc")), null, null), is(CLI.DEFAULT_IMAGE_ENTRYPOINT));
+    void userDefinedEntrypointIsKept() {
+        var runner = Docker.builder().type(Docker.class.getName()).entryPoint(List.of("/custom.sh")).build();
+
+        assertThat(CLI.withDropRootEntrypoint(runner), sameInstance(runner));
     }
 
     @Test
-    void customImageKeepsEmptyEntrypoint() throws Exception {
-        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("my-registry:5000/scrapy-custom:1")), null, null), is(List.of()));
-        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy-other")), null, null), is(List.of()));
+    void explicitUserKeepsRunnerUntouched() {
+        var runner = Docker.builder().type(Docker.class.getName()).user("root").build();
+
+        assertThat(CLI.withDropRootEntrypoint(runner), sameInstance(runner));
     }
 
     @Test
-    void userDefinedEntrypointIsKept() throws Exception {
-        assertThat(entryPoint(CLI.builder(), List.of("/custom.sh"), null), is(List.of("/custom.sh")));
-    }
+    void nonDockerRunnerIsUntouched() {
+        var runner = Process.builder().type(Process.class.getName()).build();
 
-    @Test
-    void explicitUserKeepsEmptyEntrypoint() throws Exception {
-        assertThat(entryPoint(CLI.builder(), null, "root"), is(List.of()));
-    }
-
-    private List<String> entryPoint(CLI.CLIBuilder<?, ?> builder, List<String> entryPoint, String user) throws Exception {
-        var task = builder
-            .id("scrapy-defaults-" + UUID.randomUUID())
-            .type(CLI.class.getName())
-            .commands(Property.ofValue(List.of("scrapy version")))
-            .build();
-        var runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
-        var options = DockerOptions.builder().entryPoint(entryPoint).user(user).build();
-
-        return task.injectDefaults(runContext, options).getEntryPoint();
+        assertThat(CLI.withDropRootEntrypoint(runner), sameInstance(runner));
     }
 }
