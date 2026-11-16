@@ -128,13 +128,23 @@ public class CLITest {
 
     @Test
     void defaultImageDropsRootThroughEntrypoint() throws Exception {
-        assertThat(entryPoint(CLI.builder(), null, null), is(List.of(ENTRYPOINT)));
+        assertThat(entryPoint(CLI.builder(), null, null), is(CLI.DEFAULT_IMAGE_ENTRYPOINT));
+    }
+
+    @Test
+    void defaultImageEntrypointFallsBackToTheCommandWhenScriptIsMissing() {
+        assertThat(CLI.DEFAULT_IMAGE_ENTRYPOINT, is(List.of(
+            "/bin/sh",
+            "-c",
+            "if [ -x /usr/local/bin/kestra-entrypoint.sh ]; then exec /usr/local/bin/kestra-entrypoint.sh \"$@\"; fi; exec \"$@\"",
+            "kestra-entrypoint"
+        )));
     }
 
     @Test
     void defaultImageWithTagOrDigestDropsRootThroughEntrypoint() throws Exception {
-        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy:1.2.3")), null, null), is(List.of(ENTRYPOINT)));
-        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy@sha256:abc")), null, null), is(List.of(ENTRYPOINT)));
+        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy:1.2.3")), null, null), is(CLI.DEFAULT_IMAGE_ENTRYPOINT));
+        assertThat(entryPoint(CLI.builder().containerImage(Property.ofValue("ghcr.io/kestra-io/scrapy@sha256:abc")), null, null), is(CLI.DEFAULT_IMAGE_ENTRYPOINT));
     }
 
     @Test
@@ -164,6 +174,4 @@ public class CLITest {
 
         return task.injectDefaults(runContext, options).getEntryPoint();
     }
-
-    private static final String ENTRYPOINT = "/usr/local/bin/kestra-entrypoint.sh";
 }

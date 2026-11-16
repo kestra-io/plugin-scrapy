@@ -167,7 +167,14 @@ import lombok.experimental.SuperBuilder;
 )
 public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput>, NamespaceFilesInterface, InputFilesInterface, OutputFilesInterface {
     private static final String DEFAULT_IMAGE = "ghcr.io/kestra-io/scrapy";
-    private static final String DEFAULT_IMAGE_ENTRYPOINT = "/usr/local/bin/kestra-entrypoint.sh";
+    private static final String DEFAULT_IMAGE_SCRIPT = "/usr/local/bin/kestra-entrypoint.sh";
+    // Falls back to running the command unchanged when the image predates the script.
+    static final List<String> DEFAULT_IMAGE_ENTRYPOINT = List.of(
+        "/bin/sh",
+        "-c",
+        "if [ -x " + DEFAULT_IMAGE_SCRIPT + " ]; then exec " + DEFAULT_IMAGE_SCRIPT + " \"$@\"; fi; exec \"$@\"",
+        "kestra-entrypoint"
+    );
 
     @Schema(
         title = "The Scrapy commands to run",
@@ -199,7 +206,7 @@ public class CLI extends AbstractExecScript implements RunnableTask<ScriptOutput
         }
         if (original.getEntryPoint() == null || original.getEntryPoint().isEmpty()) {
             var dropRoot = original.getUser() == null && isDefaultImage(image);
-            builder.entryPoint(dropRoot ? List.of(DEFAULT_IMAGE_ENTRYPOINT) : List.of());
+            builder.entryPoint(dropRoot ? DEFAULT_IMAGE_ENTRYPOINT : List.of());
         }
         return builder.build();
     }
