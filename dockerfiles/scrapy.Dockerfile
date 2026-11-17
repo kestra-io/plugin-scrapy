@@ -7,7 +7,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
       gcc build-essential libxml2-dev libxslt-dev ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
@@ -22,7 +22,7 @@ ENV VIRTUAL_ENV=/opt/venv \
     PLAYWRIGHT_BROWSERS_PATH=/home/kestra/.cache/ms-playwright
 
 RUN python -m venv /opt/venv \
- && pip install uv \
+ && pip install --no-cache-dir --upgrade pip setuptools wheel uv \
  && uv pip install \
     "scrapy>=2.12" \
     itemadapter \
