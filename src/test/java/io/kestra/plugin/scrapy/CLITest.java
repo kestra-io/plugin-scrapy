@@ -15,7 +15,9 @@ import io.kestra.core.queues.QueueInterface;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.TestsUtils;
+import io.kestra.plugin.core.runner.Process;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
+import io.kestra.plugin.scripts.runner.docker.Docker;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
@@ -23,6 +25,7 @@ import reactor.core.publisher.Flux;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 @KestraTest
 public class CLITest {
@@ -123,5 +126,47 @@ public class CLITest {
         TestsUtils.awaitLog(logs, log -> log.getMessage() != null && log.getMessage().contains("Scrapy help command completed!"));
         receive.blockLast();
         assertThat(logs.stream().anyMatch(log -> log.getMessage() != null && log.getMessage().contains("Scrapy help command completed!")), is(true));
+    }
+
+    @Test
+    void dockerRunnerWithDefaultEntrypointGetsDropRootEntrypoint() {
+        var defaultRunner = Docker.builder().type(Docker.class.getName()).image("custom:1").build();
+        assertThat(defaultRunner.getEntryPoint(), is(List.of("")));
+
+        var runner = (Docker) CLI.withDropRootEntrypoint(defaultRunner);
+
+        assertThat(runner.getEntryPoint(), is(CLI.DROP_ROOT_ENTRYPOINT));
+        assertThat(runner.getImage(), is("custom:1"));
+    }
+
+    @Test
+    void dropRootEntrypointWrapsTheScriptWithAFallback() {
+        assertThat(CLI.DROP_ROOT_ENTRYPOINT, is(List.of(
+            "/bin/sh",
+            "-c",
+            "if [ -x /usr/local/bin/kestra-entrypoint.sh ]; then exec /usr/local/bin/kestra-entrypoint.sh \"$@\"; fi; exec \"$@\"",
+            "kestra-entrypoint"
+        )));
+    }
+
+    @Test
+    void userDefinedEntrypointIsKept() {
+        var runner = Docker.builder().type(Docker.class.getName()).entryPoint(List.of("/custom.sh")).build();
+
+        assertThat(CLI.withDropRootEntrypoint(runner), sameInstance(runner));
+    }
+
+    @Test
+    void explicitUserKeepsRunnerUntouched() {
+        var runner = Docker.builder().type(Docker.class.getName()).user("root").build();
+
+        assertThat(CLI.withDropRootEntrypoint(runner), sameInstance(runner));
+    }
+
+    @Test
+    void nonDockerRunnerIsUntouched() {
+        var runner = Process.builder().type(Process.class.getName()).build();
+
+        assertThat(CLI.withDropRootEntrypoint(runner), sameInstance(runner));
     }
 }
