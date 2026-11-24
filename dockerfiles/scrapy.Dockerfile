@@ -21,6 +21,9 @@ ENV VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:$PATH \
     PLAYWRIGHT_BROWSERS_PATH=/home/kestra/.cache/ms-playwright
 
+# The base image ships its own pip/setuptools/wheel in /usr/local, which the venv upgrade below never touches.
+RUN /usr/local/bin/python -m pip install --no-cache-dir --upgrade pip "setuptools>=84.1.0" wheel
+
 RUN python -m venv /opt/venv \
  && pip install --no-cache-dir --upgrade pip setuptools wheel uv \
  && uv pip install \
